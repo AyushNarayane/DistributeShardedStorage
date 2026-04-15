@@ -1,16 +1,11 @@
 from flask import Flask, request, send_file, jsonify
 import os
-import sys
 import argparse
 
 app = Flask(__name__)
 
 # Will be set per-instance based on port (e.g. data_5001)
 STORAGE_DIR = "data"
-
-
-def get_storage_dir():
-    return STORAGE_DIR
 
 
 @app.route("/store", methods=["POST"])
@@ -21,7 +16,7 @@ def store():
     shard_id = request.form["shard_id"]
     file = request.files["file"]
 
-    path = os.path.join(get_storage_dir(), shard_id)
+    path = os.path.join(STORAGE_DIR, shard_id)
     file.save(path)
 
     return jsonify({"status": "stored", "shard_id": shard_id})
@@ -29,7 +24,7 @@ def store():
 
 @app.route("/retrieve/<shard_id>", methods=["GET"])
 def retrieve(shard_id):
-    path = os.path.join(get_storage_dir(), shard_id)
+    path = os.path.join(STORAGE_DIR, shard_id)
 
     if not os.path.exists(path):
         return jsonify({"error": "not found"}), 404
@@ -39,7 +34,7 @@ def retrieve(shard_id):
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "port": STORAGE_DIR})
+    return jsonify({"status": "ok", "storage": STORAGE_DIR})
 
 
 @app.route("/")
@@ -48,7 +43,6 @@ def home():
 
 
 if __name__ == "__main__":
-    # Support dynamic ports via --port argument
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=5000)
     args = parser.parse_args()
