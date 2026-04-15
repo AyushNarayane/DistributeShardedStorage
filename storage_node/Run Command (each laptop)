@@ -1,0 +1,4 @@
+docker build -t storage_node .
+docker run -p 5001:5000 storage_node   # Laptop 2
+docker run -p 5002:5000 storage_node   # Laptop 3
+docker run -p 5003:5000 storage_node   # Laptop 4

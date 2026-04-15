@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orchestrator Node</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --container-bg: #1e293b;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --border-color: #334155;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: var(--container-bg);
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 1.8rem;
+            color: var(--text-color);
+        }
+        p {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+        .section {
+            background-color: rgba(0,0,0,0.2);
+            padding: 1.5rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+        .section-title {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+        }
+        input[type="file"], input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 0.5rem;
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+        .message {
+            margin-top: 1rem;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            display: none;
+        }
+        .message.success {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: var(--success);
+            border: 1px solid var(--success);
+            display: block;
+        }
+        .message.error {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: var(--error);
+            border: 1px solid var(--error);
+            display: block;
+        }
+        /* Loading spinner */
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Distributed Storage</h1>
+        <p>Orchestrator Node UI</p>
+
+        <div class="section">
+            <div class="section-title">Upload File</div>
+            <form id="uploadForm">
+                <input type="file" id="fileInput" name="file" required />
+                <button type="submit" id="uploadBtn">
+                    <span id="uploadText">Upload</span>
+                    <div id="uploadSpinner" class="spinner"></div>
+                </button>
+            </form>
+            <div id="uploadMessage" class="message"></div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Download File</div>
+            <form id="downloadForm">
+                <input type="text" id="fileIdInput" placeholder="Enter file name (e.g. data.txt)" required />
+                <button type="submit" id="downloadBtn">Download</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadText = document.getElementById('uploadText');
+        const uploadSpinner = document.getElementById('uploadSpinner');
+        const uploadMessage = document.getElementById('uploadMessage');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // UI Loading state
+            uploadBtn.disabled = true;
+            uploadText.style.display = 'none';
+            uploadSpinner.style.display = 'block';
+            uploadMessage.className = 'message';
+            uploadMessage.textContent = '';
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    uploadMessage.textContent = `Success: File uploaded successfully!`;
+                    uploadMessage.className = 'message success';
+                    fileInput.value = '';
+                } else {
+                    uploadMessage.textContent = `Error: ${result.error || 'Upload failed'}`;
+                    uploadMessage.className = 'message error';
+                }
+            } catch (error) {
+                uploadMessage.textContent = `Error: Network failed or Server Error`;
+                uploadMessage.className = 'message error';
+            } finally {
+                // Restore UI
+                uploadBtn.disabled = false;
+                uploadText.style.display = 'block';
+                uploadSpinner.style.display = 'none';
+            }
+        });
+
+        document.getElementById('downloadForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fileId = document.getElementById('fileIdInput').value.trim();
+            if (fileId) {
+                window.location.href = `/download/${fileId}`;
+            }
+        });
+    </script>
+</body>
+</html>
