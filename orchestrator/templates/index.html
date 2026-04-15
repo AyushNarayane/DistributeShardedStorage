@@ -15,6 +15,7 @@
             --border-color: #334155;
             --success: #10b981;
             --error: #ef4444;
+            --warning: #f59e0b;
         }
         body {
             font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -22,9 +23,10 @@
             color: var(--text-color);
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
             margin: 0;
+            padding: 2rem 1rem;
         }
         .container {
             background-color: var(--container-bg);
@@ -32,7 +34,7 @@
             border-radius: 1rem;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
             width: 100%;
-            max-width: 450px;
+            max-width: 550px;
             text-align: center;
         }
         h1 {
@@ -40,10 +42,28 @@
             font-size: 1.8rem;
             color: var(--text-color);
         }
-        p {
+        .subtitle {
             color: var(--text-muted);
             margin-bottom: 2rem;
         }
+        .badges {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+        .badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-raid { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+        .badge-encrypt { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+        .badge-dedup { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
         .section {
             background-color: rgba(0,0,0,0.2);
             padding: 1.5rem;
@@ -90,6 +110,8 @@
             padding: 0.75rem;
             border-radius: 0.5rem;
             display: none;
+            font-size: 0.9rem;
+            word-break: break-all;
         }
         .message.success {
             background-color: rgba(16, 185, 129, 0.2);
@@ -116,31 +138,105 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        /* File list table */
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+        .file-table th, .file-table td {
+            padding: 0.6rem 0.5rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .file-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .file-table td {
+            color: var(--text-color);
+        }
+        .upload-id-cell {
+            font-family: monospace;
+            color: #60a5fa !important;
+            cursor: pointer;
+        }
+        .upload-id-cell:hover {
+            text-decoration: underline;
+        }
+        .no-files {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 1rem;
+            font-style: italic;
+        }
+        .btn-sm {
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            width: auto;
+            display: inline-flex;
+        }
+        .btn-secondary {
+            background-color: var(--border-color);
+        }
+        .btn-secondary:hover {
+            background-color: #475569;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .section-header .section-title {
+            margin-bottom: 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Distributed Storage</h1>
-        <p>Orchestrator Node UI</p>
+        <h1>🗄️ Distributed Storage</h1>
+        <p class="subtitle">Orchestrator Node</p>
+        <div class="badges">
+            <span class="badge badge-raid">RAID 5 Parity</span>
+            <span class="badge badge-encrypt">AES Encrypted</span>
+            <span class="badge badge-dedup">Multi-Copy</span>
+        </div>
 
+        <!-- Upload Section -->
         <div class="section">
-            <div class="section-title">Upload File</div>
+            <div class="section-title">📤 Upload File</div>
             <form id="uploadForm">
                 <input type="file" id="fileInput" name="file" required />
                 <button type="submit" id="uploadBtn">
-                    <span id="uploadText">Upload</span>
+                    <span id="uploadText">Encrypt & Upload</span>
                     <div id="uploadSpinner" class="spinner"></div>
                 </button>
             </form>
             <div id="uploadMessage" class="message"></div>
         </div>
 
+        <!-- Download Section -->
         <div class="section">
-            <div class="section-title">Download File</div>
+            <div class="section-title">📥 Download File</div>
             <form id="downloadForm">
-                <input type="text" id="fileIdInput" placeholder="Enter file name (e.g. data.txt)" required />
-                <button type="submit" id="downloadBtn">Download</button>
+                <input type="text" id="fileIdInput" placeholder="Enter Upload ID (e.g. a1b2c3d4)" required />
+                <button type="submit" id="downloadBtn">Decrypt & Download</button>
             </form>
+            <div id="downloadMessage" class="message"></div>
+        </div>
+
+        <!-- File List Section -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">📋 Uploaded Files</div>
+                <button class="btn-sm btn-secondary" onclick="loadFiles()">Refresh</button>
+            </div>
+            <div id="fileList"><div class="no-files">Loading...</div></div>
         </div>
     </div>
 
@@ -154,7 +250,7 @@
 
         uploadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const file = fileInput.files[0];
             if (!file) return;
 
@@ -177,18 +273,19 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    uploadMessage.textContent = `Success: File uploaded successfully!`;
+                    uploadMessage.innerHTML = `✅ Uploaded! <strong>Upload ID: ${result.upload_id}</strong><br>` +
+                        `File: ${result.file_name} | Shards: ${result.shards} + ${result.parity} parity | Encrypted: ✔️`;
                     uploadMessage.className = 'message success';
                     fileInput.value = '';
+                    loadFiles();
                 } else {
-                    uploadMessage.textContent = `Error: ${result.error || 'Upload failed'}`;
+                    uploadMessage.textContent = `❌ Error: ${result.error || 'Upload failed'}`;
                     uploadMessage.className = 'message error';
                 }
             } catch (error) {
-                uploadMessage.textContent = `Error: Network failed or Server Error`;
+                uploadMessage.textContent = `❌ Error: Network failed or Server Error`;
                 uploadMessage.className = 'message error';
             } finally {
-                // Restore UI
                 uploadBtn.disabled = false;
                 uploadText.style.display = 'block';
                 uploadSpinner.style.display = 'none';
@@ -197,11 +294,57 @@
 
         document.getElementById('downloadForm').addEventListener('submit', (e) => {
             e.preventDefault();
-            const fileId = document.getElementById('fileIdInput').value.trim();
-            if (fileId) {
-                window.location.href = `/download/${fileId}`;
+            const uploadId = document.getElementById('fileIdInput').value.trim();
+            if (uploadId) {
+                window.location.href = `/download/${uploadId}`;
             }
         });
+
+        async function loadFiles() {
+            const fileList = document.getElementById('fileList');
+            try {
+                const res = await fetch('/files');
+                const data = await res.json();
+
+                if (data.files.length === 0) {
+                    fileList.innerHTML = '<div class="no-files">No files uploaded yet</div>';
+                    return;
+                }
+
+                let html = `<table class="file-table">
+                    <thead><tr>
+                        <th>Upload ID</th>
+                        <th>File Name</th>
+                        <th>Size</th>
+                        <th>Time</th>
+                    </tr></thead><tbody>`;
+
+                for (const f of data.files) {
+                    const sizeKB = (f.size / 1024).toFixed(1);
+                    const time = f.upload_time || '—';
+                    html += `<tr>
+                        <td class="upload-id-cell" onclick="fillDownload('${f.upload_id}')"
+                            title="Click to fill download field">${f.upload_id}</td>
+                        <td>${f.file_name}</td>
+                        <td>${sizeKB} KB</td>
+                        <td>${time}</td>
+                    </tr>`;
+                }
+
+                html += '</tbody></table>';
+                fileList.innerHTML = html;
+            } catch (e) {
+                fileList.innerHTML = '<div class="no-files">Failed to load files</div>';
+            }
+        }
+
+        function fillDownload(uploadId) {
+            document.getElementById('fileIdInput').value = uploadId;
+            document.getElementById('fileIdInput').focus();
+        }
+
+        // Load files on page load
+        loadFiles();
     </script>
 </body>
 </html>

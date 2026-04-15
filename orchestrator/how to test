@@ -1,257 +1,151 @@
-Short answer: **YES — this will work**, but only after fixing **2 small but critical things** 👇
-(I’ll correct them + give you exact run steps so you don’t get stuck in lab)
+# ✅ HOW TO TEST — Quick Reference
 
 ---
 
-# ⚠️ IMPORTANT FIXES (DO THIS FIRST)
+## 📋 Pre-Checks
 
-## ❌ Issue 1: Port mismatch in nodes
-
-Your storage nodes run on **port 5000 inside container**, but you mapped:
-
-* Laptop 2 → 5001
-* Laptop 3 → 5002
-* Laptop 4 → 5003
-
-So your orchestrator URLs are correct ✅
-
-BUT your `node-compose.yml` currently exposes only `5000:5000` ❌
+- [ ] Python 3.7+ installed
+- [ ] `pip install flask requests cryptography` done
+- [ ] All laptops on **same Wi-Fi** (if using multiple machines)
 
 ---
 
-## ✅ FIX: Update node-compose.yml (each laptop)
+## 🚀 Run Steps
 
-👉 On Laptop 2:
+### 1. Start Storage Nodes
 
-```yaml
-version: '3'
-services:
-  storage:
-    build: ./storage_node
-    ports:
-      - "5001:5000"
+Open **separate terminals** for each node:
+
+```bash
+cd storage_node
+
+python app.py --port 5001    # Terminal 1
+python app.py --port 5002    # Terminal 2
 ```
 
-👉 On Laptop 3:
+> Each node creates its own folder: `data_5001/`, `data_5002/`
 
-```yaml
-ports:
-  - "5002:5000"
-```
+### 2. Update Orchestrator IPs
 
-👉 On Laptop 4:
-
-```yaml
-ports:
-  - "5003:5000"
-```
-
----
-
-## ❌ Issue 2: IP addresses
-
-Replace this in orchestrator:
+Edit `orchestrator/app.py`:
 
 ```python
+# Same machine:
 NODES = [
-    "http://192.168.1.11:5001",
-    "http://192.168.1.12:5002",
-    "http://192.168.1.13:5003"
+    "http://127.0.0.1:5001",
+    "http://127.0.0.1:5002",
+]
+
+# Different laptops (use ipconfig to get IPs):
+NODES = [
+    "http://192.168.x.x:5001",
+    "http://192.168.y.y:5002",
 ]
 ```
 
-👉 Use **real IPs from `ipconfig`**
-
----
-
-# ✅ FINAL VERDICT
-
-After these fixes:
-
-✔ Upload works
-✔ Download works
-✔ Sharding works
-✔ Multi-laptop communication works
-✔ Viva demo works
-
-👉 Only thing NOT implemented yet:
-❌ Fault tolerance recovery (parity)
-
-(but system still runs perfectly)
-
----
-
-# 🚀 COMPLETE RUN STEPS (NO CONFUSION)
-
----
-
-## 🧱 STEP 1: Setup (ALL laptops)
-
-Install:
-
-* Docker Desktop
-* Python (optional)
-
-Connect ALL laptops to SAME WiFi
-
----
-
-## 🌐 STEP 2: Get IPs
-
-Run:
+### 3. Start Orchestrator
 
 ```bash
-ipconfig
-```
-
-Copy IPv4 like:
-
-```
-192.168.x.x
-```
-
----
-
-## 💻 STEP 3: Start Storage Nodes
-
-### Laptop 2
-
-```bash
-docker-compose -f node-compose.yml up --build
-```
-
-### Laptop 3
-
-```bash
-docker-compose -f node-compose.yml up --build
-```
-
-### Laptop 4
-
-```bash
-docker-compose -f node-compose.yml up --build
-```
-
----
-
-## 🧠 STEP 4: Update Orchestrator IPs
-
-Edit:
-
-```python
-NODES = [
-    "http://<Laptop2-IP>:5001",
-    "http://<Laptop3-IP>:5002",
-    "http://<Laptop4-IP>:5003"
-]
-```
-
----
-
-## 💻 STEP 5: Start Orchestrator (Laptop 1)
-
-```bash
-docker-compose up --build
-```
-
-OR without Docker:
-
-```bash
-pip install -r requirements.txt
+cd orchestrator
 python app.py
 ```
 
+### 4. Open Browser
+
+Go to: **http://localhost:5000**
+
 ---
 
-## 🧪 STEP 6: TEST (VERY IMPORTANT)
+## 🧪 Test Health Check
 
----
-
-### ✅ Test Health
-
-Open browser:
+Open in browser:
 
 ```
-http://<Laptop2-IP>:5001/health
-http://<Laptop3-IP>:5002/health
-http://<Laptop4-IP>:5003/health
-```
-
-👉 Should return:
-
-```json
-{"status": "ok"}
+http://127.0.0.1:5001/health   → {"status": "ok"}
+http://127.0.0.1:5002/health   → {"status": "ok"}
 ```
 
 ---
 
-### 📤 Upload File
+## 📤 Test Upload
 
-Use Postman:
-
-```
-POST http://<Laptop1-IP>:5000/upload
-Body → form-data → file
-```
+1. Open **http://localhost:5000**
+2. Select any file → click **Encrypt & Upload**
+3. Note the **Upload ID** shown (e.g. `a1b2c3d4`)
 
 ---
 
-### 📥 Download File
+## 📥 Test Download
 
-```
-GET http://<Laptop1-IP>:5000/download/filename.txt
-```
-
----
-
-# 💥 LIVE DEMO FLOW (EXAM READY)
-
-1. Upload file ✅
-2. Show shards exist in each laptop folder ✅
-3. Download file ✅
-4. Explain architecture 🔥
+1. Enter the Upload ID in the download field
+2. Click **Decrypt & Download**
+3. File should download with the original filename
 
 ---
 
-# 🧠 COMMON ERRORS (AND FIX)
+## 💥 Test Fault Tolerance (RAID 5 Recovery)
 
-### ❌ Connection refused
-
-👉 Check:
-
-* Same WiFi?
-* Correct IP?
-* Port mapping?
+1. Upload a file (note the Upload ID)
+2. **Kill one storage node** (close its terminal)
+3. Download the file using the Upload ID
+4. ✅ File downloads perfectly — RAID 5 recovered the missing shard!
 
 ---
 
-### ❌ File not found
+## 🔁 Test Duplicate Uploads
 
-👉 Check:
-
-* Same filename in download
-
----
-
-### ❌ Timeout
-
-👉 Disable Windows Firewall (temporary)
+1. Upload `notes.txt` → get Upload ID `aaaa1111`
+2. Upload `notes.txt` again → get Upload ID `bbbb2222`
+3. Both exist in the file list as separate entries ✅
 
 ---
 
-# 🔥 FINAL TRUTH
+## 🔐 Test Encryption
 
-✔ This project WILL run
-✔ It is clean and correct
-✔ It is enough for lab + viva
-✔ Already better than most student submissions
+1. Upload a file
+2. Look inside `storage_node/data_5001/` — the shard files are gibberish (encrypted)
+3. You **cannot** read the original file from any storage node
 
 ---
 
-If you want next level:
+## 💥 LIVE DEMO FLOW (VIVA READY)
 
-👉 I can add **FAULT TOLERANCE (system works even if node dies)**
-That’s what makes this project 🔥🔥🔥
+| Step | Action | What to Show |
+|------|--------|--------------|
+| 1    | Start 2-3 nodes | Terminals showing "Running on http://0.0.0.0:500X" |
+| 2    | Start orchestrator | Browser opens dashboard at localhost:5000 |
+| 3    | Upload a file | Show Upload ID, explain encryption + sharding |
+| 4    | Show shard files | Open `data_5001/` and `data_5002/` — show encrypted blobs |
+| 5    | Kill a node | Close one terminal |
+| 6    | Download the file | Show it works! Explain RAID 5 XOR recovery |
+| 7    | Upload same file again | Show two entries with different Upload IDs |
 
-Just say:
-**"add fault tolerance"**
+---
+
+## 💬 VIVA Q&A
+
+**Q: What RAID level did you use?**
+A: RAID 5. We compute one XOR parity shard distributed across nodes.
+
+**Q: What happens if 2 nodes die?**
+A: RAID 5 tolerates exactly 1 failure. For 2+ failures, we'd need RAID 6.
+
+**Q: How is encryption handled?**
+A: AES-128 via Fernet. Data is encrypted BEFORE sharding. Storage nodes are blind.
+
+**Q: Why UUID for upload IDs?**
+A: So the same filename can be uploaded multiple times without overwriting.
+
+**Q: What is XOR parity?**
+A: If P = S0 ⊕ S1, and S0 is lost, then S0 = P ⊕ S1. Simple, fast, and effective.
+
+---
+
+## ⚠️ Common Errors
+
+| Error | Fix |
+|-------|-----|
+| `Connection refused` | Node not running, or wrong IP/port |
+| `File not found` | Use the **Upload ID**, not the filename |
+| `Timeout` | Disable Windows Firewall temporarily |
+| `Decryption failed` | Never delete `encryption.key` |
