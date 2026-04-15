@@ -94,8 +94,15 @@ def download(upload_id):
 
     shard_data = {}
     parity_data = None
-    parity_index = -1
     failed_indices = []
+
+    # Determine parity index from DB metadata BEFORE fetching
+    # This ensures we know which shard is parity even if its node is down
+    parity_index = -1
+    for _, shard_index, _, _, is_parity in rows:
+        if is_parity:
+            parity_index = shard_index
+            break
 
     # Fetch shards
     for shard_id, shard_index, node, chksum, is_parity in rows:
@@ -110,15 +117,14 @@ def download(upload_id):
 
             if is_parity:
                 parity_data = data
-                parity_index = shard_index
             else:
                 shard_data[shard_index] = data
 
         except Exception as e:
-            print(f"Shard {shard_index} cluster error: {e}")
+            print(f"Shard {shard_index} fetch error: {e}")
             failed_indices.append(shard_index)
 
-    # Recovery logic
+    # Recovery logic — filter out parity from failed list
     failed_data_shards = [i for i in failed_indices if i != parity_index]
 
     if len(failed_data_shards) > 1:
