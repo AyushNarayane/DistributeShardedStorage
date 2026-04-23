@@ -168,6 +168,22 @@ def list_files():
     })
 
 
+@app.route("/nodes", methods=["GET"])
+def list_nodes():
+    node_status = []
+    for node in NODES:
+        try:
+            res = requests.get(f"{node}/health", timeout=2)
+            if res.status_code == 200:
+                node_status.append({"url": node, "status": "online", "details": res.json()})
+            else:
+                node_status.append({"url": node, "status": "error", "code": res.status_code})
+        except Exception as e:
+            node_status.append({"url": node, "status": "offline", "error": str(e)})
+    
+    return jsonify({"nodes": node_status})
+
+
 @app.route("/")
 def home():
     return render_template("index.html")

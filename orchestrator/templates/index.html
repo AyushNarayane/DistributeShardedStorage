@@ -195,6 +195,38 @@
         .section-header .section-title {
             margin-bottom: 0;
         }
+        .status-dot {
+            height: 8px;
+            width: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-online { 
+            background-color: var(--success); 
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse-green 2s infinite; 
+        }
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+        .status-offline { background-color: var(--error); box-shadow: 0 0 8px var(--error); }
+        .status-warning { background-color: var(--warning); box-shadow: 0 0 8px var(--warning); }
+        .node-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .node-item:last-child { border-bottom: none; }
+        .node-info { display: flex; align-items: center; }
+        .node-url { font-family: monospace; color: var(--text-color); font-size: 0.85rem; }
+        .node-status-text { font-size: 0.75rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
+        .text-online { color: var(--success); }
+        .text-offline { color: var(--error); }
     </style>
 </head>
 <body>
@@ -228,6 +260,15 @@
                 <button type="submit" id="downloadBtn">Decrypt & Download</button>
             </form>
             <div id="downloadMessage" class="message"></div>
+        </div>
+
+        <!-- Node Status Section -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">🖥️ System Health</div>
+                <button class="btn-sm btn-secondary" onclick="loadNodes()">Refresh</button>
+            </div>
+            <div id="nodeList"><div class="no-files">Checking nodes...</div></div>
         </div>
 
         <!-- File List Section -->
@@ -292,11 +333,65 @@
             }
         });
 
-        document.getElementById('downloadForm').addEventListener('submit', (e) => {
+        const downloadForm = document.getElementById('downloadForm');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const downloadMessage = document.getElementById('downloadMessage');
+        const fileIdInput = document.getElementById('fileIdInput');
+
+        downloadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const uploadId = document.getElementById('fileIdInput').value.trim();
-            if (uploadId) {
-                window.location.href = `/download/${uploadId}`;
+            const uploadId = fileIdInput.value.trim();
+            if (!uploadId) return;
+
+            // UI Loading state
+            downloadBtn.disabled = true;
+            const originalBtnText = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = '<span>Processing...</span><div class="spinner" style="display:block; margin-left: 10px;"></div>';
+            downloadMessage.className = 'message';
+            downloadMessage.textContent = '';
+
+            try {
+                const response = await fetch(`/download/${uploadId}`);
+                
+                if (response.ok) {
+                    // It's a file download
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    
+                    // Try to get filename from Content-Disposition header
+                    const disposition = response.headers.get('Content-Disposition');
+                    let fileName = `file_${uploadId}`;
+                    if (disposition && disposition.indexOf('attachment') !== -1) {
+                        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                        const matches = filenameRegex.exec(disposition);
+                        if (matches != null && matches[1]) { 
+                            fileName = matches[1].replace(/['"]/g, '');
+                        }
+                    }
+                    
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    downloadMessage.textContent = `✅ File "${fileName}" downloaded successfully!`;
+                    downloadMessage.className = 'message success';
+                } else {
+                    // Try to parse error message from JSON
+                    const errorResult = await response.json();
+                    downloadMessage.textContent = `❌ Error: ${errorResult.error || 'Download failed'}`;
+                    downloadMessage.className = 'message error';
+                }
+            } catch (error) {
+                console.error("Download Error:", error);
+                downloadMessage.textContent = `❌ Error: Connection failed or decryption error. Check if nodes are online.`;
+                downloadMessage.className = 'message error';
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = originalBtnText;
             }
         });
 
@@ -334,7 +429,36 @@
                 html += '</tbody></table>';
                 fileList.innerHTML = html;
             } catch (e) {
-                fileList.innerHTML = '<div class="no-files">Failed to load files</div>';
+                fileList.innerHTML = '<div class="no-files" style="color: var(--error);">⚠️ Failed to load files.<br><button class="btn-sm btn-secondary" style="margin-top: 10px;" onclick="loadFiles()">Try Again</button></div>';
+            }
+        }
+
+        async function loadNodes() {
+            const nodeList = document.getElementById('nodeList');
+            try {
+                const res = await fetch('/nodes');
+                const data = await res.json();
+                
+                let html = '';
+                data.nodes.forEach(node => {
+                    const isOnline = node.status === 'online';
+                    const statusClass = isOnline ? 'status-online' : 'status-offline';
+                    const textClass = isOnline ? 'text-online' : 'text-offline';
+                    const statusText = isOnline ? 'Online' : 'Offline';
+                    
+                    html += `
+                        <div class="node-item">
+                            <div class="node-info">
+                                <span class="status-dot ${statusClass}"></span>
+                                <span class="node-url">${node.url}</span>
+                            </div>
+                            <span class="node-status-text ${textClass}">${statusText}</span>
+                        </div>
+                    `;
+                });
+                nodeList.innerHTML = html;
+            } catch (e) {
+                nodeList.innerHTML = '<div class="no-files">Failed to load node status</div>';
             }
         }
 
@@ -343,8 +467,11 @@
             document.getElementById('fileIdInput').focus();
         }
 
-        // Load files on page load
+        // Load data on page load
         loadFiles();
+        loadNodes();
+        // Periodically refresh node status
+        setInterval(loadNodes, 30000);
     </script>
 </body>
 </html>
